@@ -1,15 +1,22 @@
 package com.example.lab5_starter;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
 
 import androidx.activity.EdgeToEdge;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
 
 import java.util.ArrayList;
 
@@ -20,6 +27,9 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
 
     private ArrayList<City> cityArrayList;
     private ArrayAdapter<City> cityArrayAdapter;
+
+    private FirebaseFirestore db;
+    private CollectionReference citiesref;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,15 +65,72 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
             cityDialogFragment.show(getSupportFragmentManager(),"City Details");
         });
 
+
+        db = FirebaseFirestore.getInstance();
+
+        citiesref = db.collection("cities");
+
+
+        citiesref.addSnapshotListener((value, error) -> {
+            if (error != null) {
+                Log.e("Firestore", error.toString());
+            }
+
+            if (value != null && !value.isEmpty()){
+                cityArrayList.clear();
+                for (QueryDocumentSnapshot snapshot:value) {
+                    String name = snapshot.getString("name");
+                    String province = snapshot.getString("province");
+
+                    cityArrayList.add(new City(name, province));
+
+                }
+            }
+
+            cityArrayAdapter.notifyDataSetChanged();
+        });
+
+        cityListView.setOnItemLongClickListener((adapterView, view, i, l) -> {
+            City city = cityArrayAdapter.getItem(i);
+            if (city != null) {
+                deleteCity(city);
+            }
+            return true;
+        });
+
+        cityListView.setOnItemLongClickListener((adapterView, view, i, l) -> {
+            City city = cityArrayAdapter.getItem(i);
+            if (city == null) return true;
+
+            new AlertDialog.Builder(this)
+                    .setTitle("Delete City")
+                    .setMessage("Delete " + city.getName() + "?")
+                    .setPositiveButton("Yes", (dialog, which) -> deleteCity(city))
+                    .setNegativeButton("No", null)
+                    .show();
+
+            return true;
+        });
+
+
     }
 
     @Override
-    public void updateCity(City city, String title, String year) {
-        city.setName(title);
-        city.setProvince(year);
-        cityArrayAdapter.notifyDataSetChanged();
-
-        // Updating the database using delete + addition
+    public void updateCity(City oldCity, String newName, String newProvince) {
+        if (!oldCity.getName().equals(newName)) {
+            DocumentReference oldDoc = citiesref.document(oldCity.getName());
+            oldDoc.delete()
+                    .addOnSuccessListener(aVoid -> {
+                        City updatedCity = new City(newName, newProvince);
+                        addCity(updatedCity);
+                    })
+                    .addOnFailureListener(e -> {
+                    });
+        } else {
+            oldCity.setProvince(newProvince);
+            citiesref.document(oldCity.getName()).set(oldCity);
+            cityArrayAdapter.notifyDataSetChanged();
+        }
     }
 
     @Override
@@ -71,6 +138,20 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
         cityArrayList.add(city);
         cityArrayAdapter.notifyDataSetChanged();
 
+        DocumentReference docRef = citiesref.document(city.getName());
+        docRef.set(city);
+
+    }
+
+    public void deleteCity(City city) {
+        DocumentReference docRef = citiesref.document(city.getName());
+        docRef.delete()
+                .addOnSuccessListener(aVoid -> {
+                    cityArrayList.remove(city);
+                    cityArrayAdapter.notifyDataSetChanged();
+                })
+                .addOnFailureListener(e -> {
+                });
     }
 
     public void addDummyData(){
