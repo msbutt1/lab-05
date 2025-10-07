@@ -2,8 +2,8 @@
 
 ## Student Details
 
-- **Full Name:** `<Enter name>`
-- **CCID:** `<Enter ccid>`
+- **Full Name:** `Muhammad Salaar Butt`
+- **CCID:** `msbutt1`
 
 ## References and Resources
 
